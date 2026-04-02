@@ -59,13 +59,14 @@ Because of this, the scripts are intended to be run inside ArcGIS Pro and not as
 
 ## 4. Script Inventory and Execution Order
 
-The project consists of five main scripts:
+The project consists of six main scripts:
 
 1. `01_HAND_Flood_Mapping.py`
 2. `02_Download_Data.py`
 3. `03_Emergency_Routing.py`
 4. `04_Visualize_Results.py`
 5. `05_Generate_Graphs.py`
+6. `06_Local_Flooded_Road_Mobility_1m.py`
 
 ### Required Execution Order
 
@@ -73,9 +74,10 @@ The project consists of five main scripts:
 2. Run `02_Download_Data.py`
 3. Run `03_Emergency_Routing.py`
 4. Optionally run `04_Visualize_Results.py` for map styling and export
-5. Run `05_Generate_Graphs.py` for statistical graphs
+5. Optionally run `05_Generate_Graphs.py` for statistical graphs
+6. Optionally run `06_Local_Flooded_Road_Mobility_1m.py` for detailed 1-meter road mobility analysis
 
-The first three scripts are the core analytical pipeline. The last two are presentation and reporting layers built on the outputs of the core analysis.
+The first three scripts are the core analytical pipeline. Scripts 4-6 are optional presentation, reporting, and detailed analysis layers built on the outputs of the core analysis.
 
 ---
 
@@ -137,13 +139,14 @@ If OSM does not return all facilities, fallback known hospitals are inserted man
 
 ## 7. Methodology Overview
 
-The workflow can be understood as five major technical stages:
+The workflow can be understood as six major technical stages:
 
 1. Terrain-based flood depth estimation using HAND
 2. Download and preparation of roads and hospitals
 3. Road vulnerability and emergency routing analysis
-4. Visualization and map export
-5. Graph generation and reporting
+4. Visualization and map export (optional)
+5. Graph generation and reporting (optional)
+6. Local flooded road mobility mapping at 1-meter resolution (optional)
 
 ---
 
@@ -570,6 +573,109 @@ The script is written defensively. If any layer is missing, it skips only the re
 
 ---
 
+## 8.6 Stage 6: Local Flooded Road Mobility at 1-Meter Resolution
+
+### Script
+`06_Local_Flooded_Road_Mobility_1m.py`
+
+### Purpose
+Generate a hyper-local flooded road mobility map at 1-meter resolution, identifying safe speeds and passability for every micro-segment of roads in the flood zone. This provides detailed visualization for emergency operations and granular mobility analysis.
+
+### 8.6.1 Input Selection
+The script intelligently selects the best available flood and road inputs:
+
+- Flood input: `flood_depth_float.tif` (preferred) or `Beas_Final_Flood_Depth.tif` (fallback)
+- Road input: `Road_Vulnerability` (preferred from Emergency_Routing.gdb) or `roads.shp` (fallback)
+
+This allows the script to work even if intermediate rasters are missing.
+
+### 8.6.2 Flood Polygon Extraction
+A polygon boundary is created from the flood raster:
+
+- condition: depth > 0
+- output: `Flood_Polygon`
+
+This polygon defines the modeled flood zone and is used to select only roads within inundated areas.
+
+### 8.6.3 Road Selection and Densification
+Roads intersecting the flood zone are:
+
+1. spatially clipped to the flood extent,
+2. densified to 1-meter segments using `DensifyFeatureClass`,
+3. split at each densification point to create individual micro-segments.
+
+Output intermediate feature class:
+- `Roads_In_Flood_Zone` (clipped roads)
+- `Roads_In_Flood_Zone_1m_Source` (1m segments)
+
+### 8.6.4 Midpoint Sampling
+For each 1-meter road micro-segment:
+
+1. the segment's midpoint is calculated,
+2. flood depth is sampled at the midpoint location,
+3. the depth-disruption function is applied locally.
+
+Output points layer:
+- `Road_Local_Mobility_1m_Pts` (midpoints with depth values)
+
+### 8.6.5 Local Safe Speed Calculation
+The script applies the Pregnolato et al. (2017) depth-disruption function at local scale:
+
+`v(d) = 900d² - 552.9d + 86.9448`
+
+where:
+- `d` = water depth in meters,
+- `v` = safe speed in km/h.
+
+Applied rules:
+- depth ≤ 0 m → safe speed = 86.94 km/h
+- depth > 0.30 m → safe speed = 0 km/h (impassable)
+- all values clamped to [0, 86.94]
+
+Speed is then classified into bands:
+- `5` = 60-87 km/h
+- `4` = 40-60 km/h
+- `3` = 20-40 km/h
+- `2` = 10-20 km/h
+- `1` = 0-10 km/h
+- `0` = 0 km/h (impassable)
+
+### 8.6.6 Passability Classification
+For each micro-segment, passability status is determined:
+
+- `Safe` for depth ≤ 0 m
+- `Caution` for 0 < depth < 0.20 m
+- `Restricted` for 0.20 m ≤ depth < 0.45 m
+- `Impassable` for depth ≥ 0.45 m
+
+Vehicle-specific passability thresholds:
+- Small car: passable if depth ≤ 0.25 m
+- Ambulance/SUV: passable if depth ≤ 0.35 m
+- Heavy vehicle: passable if depth ≤ 0.45 m
+
+### 8.6.7 Final Output
+
+Output feature class:
+- `Flooded_Road_Local_Mobility_1m`
+
+Contains fields:
+- `OBJECTID`
+- `flood_depth` (depth in meters at segment midpoint)
+- `safe_speed` (speed in km/h from Pregnolato function)
+- `speed_class` (ordinal classification 0-5)
+- `road_status` (Safe/Caution/Restricted/Impassable)
+- `small_car` (boolean: passable for small cars)
+- `ambulance` (boolean: passable for ambulances/SUVs)
+- `heavy_veh` (boolean: passable for heavy vehicles)
+
+This output is suitable for:
+- visualization of detailed road mobility,
+- planning of emergency vehicle routes through flood zones,
+- analysis of bottlenecks where all vehicle types fail,
+- micro-scale traffic flow analysis.
+
+---
+
 ## 9. Interpretation of Key Metrics
 
 ## 9.1 Flood Risk
@@ -665,6 +771,13 @@ Expected result:
 
 - chart PNGs written to `D:\Internship\hand\graph`
 
+### Step 9 (Optional). Run `06_Local_Flooded_Road_Mobility_1m.py`
+Expected result:
+
+- 1-meter road segments created in flood zone,
+- local safe speeds calculated,
+- detailed passability map generated.
+
 ---
 
 ## 11. Output Inventory
@@ -687,10 +800,14 @@ Expected result:
 - candidate locations
 - optimal emergency centers
 - allocation lines
+- roads in flood zone (clipped)
+- 1-meter road micro-segments with local mobility data
+- local road passability classifications
 
 ### Presentation Outputs
 - map PNG and PDF
 - graph PNGs
+- local flooded road mobility layer
 
 ---
 
@@ -734,7 +851,7 @@ Although the workflow is operationally useful, the following limitations should 
 
 The workflow can be described in technical reporting as follows:
 
-"A GIS-based decision-support workflow was developed in ArcGIS Pro for flood-risk classification, road vulnerability assessment, emergency route optimization, and emergency facility location planning in the Beas River Basin. Terrain-derived flood depth was integrated with road-network accessibility to estimate flood-adjusted safe speeds, classify passability for different emergency vehicle categories, compute quickest evacuation routes, delineate service areas, and identify optimal locations for emergency response centers under a 20-minute response threshold."
+"A comprehensive GIS-based decision-support workflow was developed in ArcGIS Pro for flood-risk classification, road vulnerability assessment, emergency route optimization, emergency facility location planning, and detailed flooded road mobility analysis in the Beas River Basin. Terrain-derived flood depth was integrated with road-network accessibility to estimate flood-adjusted safe speeds, classify passability for different emergency vehicle categories, compute quickest evacuation routes, delineate service areas, identify optimal locations for emergency response centers under a 20-minute response threshold, and generate hyper-local 1-meter road mobility maps for operational emergency planning."
 
 ---
 
@@ -745,9 +862,10 @@ This ArcGIS Pro workflow forms a complete technical chain from terrain-derived f
 - which roads remain usable,
 - how quickly emergency vehicles can move,
 - which flood-affected zones are reachable in time,
-- where new response facilities should ideally be placed.
+- where new response facilities should ideally be placed,
+- precise micro-segment mobility conditions for detailed operational planning.
 
-For a Himalayan study area such as Kullu Valley, this makes the workflow operationally meaningful for disaster preparedness, rescue planning, and infrastructure resilience assessment.
+For a Himalayan study area such as Kullu Valley, this makes the workflow operationally meaningful for disaster preparedness, rescue planning, route dispatch, infrastructure resilience assessment, and emergency vehicle mobility planning at both strategic and operational scales.
 
 ---
 

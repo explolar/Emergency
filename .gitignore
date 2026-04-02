@@ -78,6 +78,7 @@ output.txt
 *.log
 *.tmp
 *.bak
+.claude/
 
 # ===========================================
 # Large Data (keep out of git)
