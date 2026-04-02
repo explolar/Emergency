@@ -1,0 +1,88 @@
+# ===========================================
+# ArcGIS / GIS Project Files
+# ===========================================
+*.gdb/
+*.gdb.lock
+*.lyr
+*.lyrx
+*.mxd
+*.aprx
+*.atbx
+*.tbx
+*.sde
+*.geodatabase
+*.lock
+*.sr.lock
+
+# Raster Data (large files)
+*.tif
+*.tiff
+*.img
+*.adf
+*.aux.xml
+*.ovr
+*.rrd
+*.xml
+*.cpg
+
+# Shapefiles (generated data)
+*.shp
+*.shx
+*.dbf
+*.prj
+*.sbn
+*.sbx
+*.fbn
+*.fbx
+*.ain
+*.aih
+*.ixs
+*.mxs
+*.atx
+*.shp.xml
+
+# ===========================================
+# Python
+# ===========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyc
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+.env
+
+# ===========================================
+# IDE / Editor
+# ===========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ===========================================
+# Output / Temp Files
+# ===========================================
+output.txt
+*.log
+*.tmp
+*.bak
+
+# ===========================================
+# Large Data (keep out of git)
+# ===========================================
+Hand_folde/
+*.zip
+*.7z
+*.rar
